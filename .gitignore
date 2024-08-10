@@ -1,3 +1,5 @@
 /build/
 /local/
 *~
+zig-out/
+.zig-cache/

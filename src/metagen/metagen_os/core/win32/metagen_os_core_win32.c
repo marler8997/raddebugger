@@ -225,6 +225,16 @@ os_tid(void)
   return (U32)id;
 }
 
+#if COMPILER_MSVC
+#else
+internal LONG WINAPI on_set_thread_name_exception(EXCEPTION_POINTERS* e)
+{
+    if (e->ExceptionRecord->ExceptionCode == 0x406d1388)
+        return EXCEPTION_CONTINUE_EXECUTION;
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+#endif
+
 internal void
 os_set_thread_name(String8 name)
 {
@@ -255,16 +265,24 @@ os_set_thread_name(String8 name)
     info.szName = (char *)name_copy.str;
     info.dwThreadID = os_tid();
     info.dwFlags = 0;
+#if COMPILER_MSVC
 #pragma warning(push)
 #pragma warning(disable: 6320 6322)
     __try
     {
+#else
+    void *handler = AddVectoredExceptionHandler(1, on_set_thread_name_exception);
+#endif
       RaiseException(0x406D1388, 0, sizeof(info) / sizeof(void *), (const ULONG_PTR *)&info);
+#if COMPILER_MSVC
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
     }
 #pragma warning(pop)
+#else
+    RemoveVectoredExceptionHandler(handler);
+#endif
   }
   
   scratch_end(scratch);
@@ -1238,9 +1256,12 @@ os_library_close(OS_Handle lib)
 internal void
 os_safe_call(OS_ThreadFunctionType *func, OS_ThreadFunctionType *fail_handler, void *ptr)
 {
+#if COMPILER_MSVC
   __try
   {
+#endif
     func(ptr);
+#if COMPILER_MSVC
   }
   __except (EXCEPTION_EXECUTE_HANDLER)
   {
@@ -1250,6 +1271,7 @@ os_safe_call(OS_ThreadFunctionType *func, OS_ThreadFunctionType *fail_handler, v
     }
     ExitProcess(1);
   }
+#endif
 }
 
 ////////////////////////////////
